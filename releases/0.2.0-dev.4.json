@@ -1,0 +1,231 @@
+{
+  "assets": {
+    "SHA256SUMS": "eec83c1b557a954cae72bacf385f5641b11f336970cd37adb763052c7e66129f",
+    "quick-app-0.2.0-dev.4.zip": "45f1776fa56049f0e0c2a968aa81957798975651d4aa8666fdf16dd580906480",
+    "quick-app-0.2.0-dev.4.zip.sha256": "fe4eae802eca5ebba8849f386f64fe2829e8c4e96b24472babf6cecf964fa287",
+    "quick-nucleus-0.2.0-dev.4-linux-amd64.tar.gz": "2eec2546634017385a2d11b8c1361c43bda9f7a9b2154048b51fd4d5a04c6bf0",
+    "quick-nucleus-0.2.0-dev.4-linux-arm64.tar.gz": "1643b88e87f1c79f209f44f490c245bda8eb8677d20d9a8488be0d3a70a65a36",
+    "quick_cli-0.2.0.dev4-py3-none-any.whl": "c4b1060501abcbfbf8e6ed72bc46b00399f705162120422a428ecfb71f8acedb",
+    "quick_server_sdk-0.2.0.dev4-py3-none-any.whl": "e7be9defc7cb4d2db1cbb43b61059c4cd70a066f7bd178e8f26a1527ebcb12f7"
+  },
+  "images": {
+    "control-plane-image": {
+      "children": {
+        "amd64": "sha256:c0e59fdb7016a366206700f509beb47742fe6088a7f359293b6cdda33682719e",
+        "arm64": "sha256:71bd7d4c3e2c04d50e8941de0059ef5b2c446ad37b6144905312e692d120bd6a"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-control-plane@sha256:2fb931436eb944bc040e6e767aaec09a8b859e31afd5b36298a9efdacf09734b",
+      "version": "0.2.0-dev.4"
+    },
+    "garage-admin-image": {
+      "children": {
+        "amd64": "sha256:e0d4eb4330917df3404d562a5eee23d3f5dafc033e0dd7e56eae6a5b914b82cc",
+        "arm64": "sha256:079f22b1b01054587ee7dba326fa5b11a7ee5d0beeaff4a11a8b67a2e82830d1"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-garage-admin@sha256:cd3eff1f76ba40d062170a61a59bdd3934a2da1cb88653ac74dae2b767013929",
+      "version": "0.2.0-dev.4"
+    },
+    "garage-image": {
+      "children": {
+        "amd64": "sha256:df71920098b2728cda596c4362cd6316345f6791240b2c2aff8aa34668f99b6d",
+        "arm64": "sha256:88bf0cdccf026259d9f07d1b8859afc8f1cbc0e518289fdf9fc89997d4d8b5a3"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "dxflrs/garage@sha256:15b40e0dddd2e611aa746ff6f7c3bfe9f22735e4a2cc29e0abd89c268e9b79d9",
+      "version": "0.2.0-dev.4"
+    },
+    "otel-collector-image": {
+      "children": {
+        "amd64": "sha256:b5cf983651c32c3ca13f936deb51742015a54d121f388cac248923ddeb8cc9fc",
+        "arm64": "sha256:d497a11a3088097e4054ffbfd4b4f5244a8c036dc77c96cf2f14f86113ee9b86"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "otel/opentelemetry-collector-contrib@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1",
+      "version": "0.2.0-dev.4"
+    },
+    "postgres-image": {
+      "children": {
+        "amd64": "sha256:15b55a04a4935714c45ec9fe104bdc6912d9d91ecaf272c8eb735ac44b2907db",
+        "arm64": "sha256:4fbaa772bf1fae5db8a526173550d565f76f938e3ae86c4b63984b8fb968bfc5"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/postgres@sha256:0e2279598bc0224fb5960c3a61eb23270cd60119427f3a7bdec86ba282600dcc",
+      "version": "0.2.0-dev.4"
+    },
+    "postgrest-image": {
+      "children": {
+        "amd64": "sha256:560895fc1f6cb78f36ae64682c85bfc923c73da2d3a473ae2f55755fd7991ad1",
+        "arm64": "sha256:844785450d6b046ee97f1c67ea37e3ff6b4ed7ee3570b1b91c03f66f032c4805"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "postgrest/postgrest@sha256:54000f24847d01a2c2302e0041cf0618b875c57fb48507d743cfa9aaa50bf43c",
+      "version": "0.2.0-dev.4"
+    },
+    "quick-caddy-image": {
+      "children": {
+        "amd64": "sha256:1c6a0bcda48b6cd3aa4dff21a272396d8aba32140e5457c19e07fb7c2d7b3494",
+        "arm64": "sha256:8b314f3d41748ff5e578f77e4864441f2dcbbc714b2990cbd6b1b5c0c2601052"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-caddy@sha256:a6903439f6fae70aba5c4b57dd27bdb00fe261feea8373f545f5f4199997f73c",
+      "version": "0.2.0-dev.4"
+    },
+    "quick-nginx-image": {
+      "children": {
+        "amd64": "sha256:a975ded9c90b815bff796ff9823efee12858a669370821b0e1706333f8ff4efd",
+        "arm64": "sha256:62ce0848d0334c91517cf37248e5cdae71a2e295a74ccbd329a46a3f695a1ea4"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-nginx@sha256:5513b01fed889c6e3291d26e610335266e2ef5e5f009dd03fccd939651df7069",
+      "version": "0.2.0-dev.4"
+    },
+    "quick-secret-image": {
+      "children": {
+        "amd64": "sha256:6636728fe7ecd813f3f6d51161cd0b4ee784751040bea4e2def9aaa1e8d7db3b",
+        "arm64": "sha256:37d0ae65af979f15b056bfbc347568e6fa250019ef5298cc04e045480e7412ac"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-secret@sha256:1fccc2b4fb40b1f31bcd9ad2f50df82b28b2ae49f7d92cb2c4f4e2b267ed1e69",
+      "version": "0.2.0-dev.4"
+    },
+    "realtime-image": {
+      "children": {
+        "amd64": "sha256:2cc87edf0db5cebf1f58c9a4116bb80a25ff764c8706b6802fa68d976e66e5d7",
+        "arm64": "sha256:11651eb260639365adfd8d886ac1bfba9b069440cf92cc29f400f3b4a6554cb9"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/realtime@sha256:aa1c92c0cf326007563641730ec9da9c60478caa6853887775365fa2c097a471",
+      "version": "0.2.0-dev.4"
+    },
+    "runner-image": {
+      "children": {
+        "amd64": "sha256:a5b5aa3155de2771021b6b9aced463b1333bfce963b14da860202feab0452ad9",
+        "arm64": "sha256:6c757d1ea3707baed88835f396703eb9ae6a77e680d5de4df5059e1102e7b65f"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-runner@sha256:0f88ac5bf7975fb849114e71083c6e1820248b7831831041211913934cc993c8",
+      "version": "0.2.0-dev.4"
+    },
+    "storage-image": {
+      "children": {
+        "amd64": "sha256:6f706c1184d97b081446527bb62a3193d3d47ad0daafcf738fd5c3e5a62aed97",
+        "arm64": "sha256:9326eb9c6b74c0a5ba393ab46a08a51d16bc5ea5f2978fc5b0f17fc67c64a4de"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/storage-api@sha256:c8eb9858eafec891a97c27125470aaad54703c3f4eb4d55ca7f1bf6c6411febf",
+      "version": "0.2.0-dev.4"
+    }
+  },
+  "source_revision": "f9632e94aaae1898ae8d1835b5333d84f9086419",
+  "version": "0.2.0-dev.4"
+}
