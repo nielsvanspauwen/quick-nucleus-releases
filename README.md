@@ -5,6 +5,6 @@ runtime image references, and matching Python SDK and developer CLI wheels.
 The Quick source repository remains private. Releases are unsigned: HTTPS and
 the publication account establish trust; checksums detect artifact corruption.
 
-Download a versioned release from this repository's Releases page. Release
+Install the recommended release with `curl -fsSL https://get.warpica.com | sudo bash`, or download a versioned release from this repository's Releases page. Release
 metadata under `releases/` records source provenance and frozen artifact hashes.
-New releases include a pinned bootstrap script that verifies acquisition and runs the binary's version command. Interactive installation remains pending.
+Each release includes a pinned bootstrap script that verifies acquisition and starts the guided installation.
