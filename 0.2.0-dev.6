@@ -1,0 +1,779 @@
+#!/usr/bin/env bash
+# Generated release asset; HTTPS/account trust, unsigned checksums.
+# The complete compound command must parse before acquisition can start.
+{
+quick_bootstrap() {
+  if ! command -v curl >/dev/null || ! test -x /usr/bin/python3; then
+    echo 'Bootstrap requires default Ubuntu curl and Python 3; see the prerequisite guide.' >&2
+    return 1
+  fi
+  /usr/bin/python3 -I - "$@" <<'QUICK_BOOTSTRAP_PYTHON'
+"""Shared download-before-execution command for publication and recovery."""
+
+import shlex
+
+COMPLETE_MARKER = "# QUICK_NUCLEUS_BOOTSTRAP_COMPLETE"
+
+
+def asset_url(repository, version, name):
+    return f"https://github.com/{repository}/releases/download/v{version}/{name}"
+
+
+def script_name(version):
+    return f"quick-nucleus-bootstrap-{version}.sh"
+
+
+def short_command(base_url, version, *, verify_only=False):
+    """The pinned short entrance a format-2 release publishes at BASE/VERSION."""
+    suffix = " -s -- --verify-only" if verify_only else ""
+    return f"curl -fsSL {base_url}/{version} | sudo bash{suffix}"
+
+
+def cli_short_command(base_url, version=None):
+    """The developer CLI installer at BASE/cli, pinned when VERSION is given."""
+    return f"curl -fsSL {base_url}/cli{'/' + version if version else ''} | sh"
+
+
+def bootstrap_command(repository, version, sudo=True, interactive=False):
+    url = asset_url(repository, version, script_name(version))
+    # Download to a private file first. A pipeline can execute partial source and
+    # report success for an empty response, even when its producer failed.
+    body = (
+        'set -e; bootstrap_script=$(mktemp); '
+        'trap \'rm -f -- "$bootstrap_script"\' EXIT; '
+        "curl --disable --fail --silent --show-error --location --proto '=https' "
+        "--proto-redir '=https' --connect-timeout 30 --max-time 120 --max-filesize 1048576 "
+        f'--output "$bootstrap_script" {shlex.quote(url)}; '
+        f'[ "$(tail -n 1 -- "$bootstrap_script")" = {shlex.quote(COMPLETE_MARKER)} ] || '
+        '{ echo "Bootstrap fetch refused: empty or incomplete script." >&2; exit 1; }; '
+        'bash -n "$bootstrap_script"; bash "$bootstrap_script" "$@"'
+    )
+    shell = "sudo bash" if sudo else "bash"
+    command = f"{shell} -c {shlex.quote(body)} --"
+    # Format-1 scripts verify acquisition only unless asked for --interactive;
+    # format-2 scripts are interactive by default and take no argument here.
+    return command + " --interactive" if interactive else command
+
+"""Dependency-free integrity rules shared by release production and bootstrap.
+
+These checks establish consistency of an unsigned release, not authenticity.
+"""
+
+import hashlib
+import gzip
+import errno
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import tarfile
+
+METADATA_LIMIT = 16 * 1024 * 1024
+ARCHIVE_LIMIT = 1024 * 1024 * 1024
+EXPANDED_LIMIT = 2 * ARCHIVE_LIMIT
+FILE_LIMIT = 10000
+VERSION_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
+HASH_PATTERN = r"[0-9a-f]{64}"
+
+
+def safe_parts(relative):
+    if not isinstance(relative, str) or not relative or "\\" in relative or any(ord(c) < 32 or ord(c) == 127 for c in relative):
+        raise ValueError("unsafe artifact path")
+    parts = relative.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise ValueError("unsafe artifact path")
+    return parts
+
+
+def checksum(path):
+    with open_regular(path.parent, path.name) as source:
+        return hash_stream(source)
+
+
+def hash_stream(source):
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def open_regular(root, relative):
+    """Traverse relative to descriptors, never following a filesystem link."""
+    parts = safe_parts(relative)
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        child = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+        try:
+            if not stat.S_ISREG(os.fstat(child).st_mode):
+                raise ValueError("artifact is not a regular file")
+            return os.fdopen(child, "rb")
+        except BaseException:
+            os.close(child)
+            raise
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            raise ValueError("artifact_missing: " + repr(relative)[:160]) from None
+        raise ValueError("symlink artifact or unusable file: " + repr(relative)[:160]) from None
+    finally:
+        os.close(descriptor)
+
+
+def read_metadata(root, relative):
+    with open_regular(root, relative) as source:
+        payload = source.read(METADATA_LIMIT + 1)
+    if len(payload) > METADATA_LIMIT:
+        raise ValueError("metadata exceeds size limit")
+    return payload
+
+
+def unique_json(payload):
+    if len(payload) > METADATA_LIMIT:
+        raise ValueError("metadata exceeds size limit")
+
+    def pairs(entries):
+        result = {}
+        for key, value in entries:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def invalid_number(_):
+        raise ValueError("invalid JSON number")
+
+    return json.loads(payload, object_pairs_hook=pairs, parse_constant=invalid_number)
+
+
+def parse_sums(payload):
+    if len(payload) > METADATA_LIMIT:
+        raise ValueError("metadata exceeds size limit")
+    entries = {}
+    for line in payload.decode("utf-8").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not match:
+            raise ValueError("invalid SHA256SUMS entry")
+        name = match[2]
+        safe_parts(name)
+        if name in entries:
+            raise ValueError("duplicate SHA256SUMS entry")
+        entries[name] = match[1]
+        if len(entries) > FILE_LIMIT:
+            raise ValueError("checksum inventory exceeds file limit")
+    if not entries:
+        raise ValueError("empty SHA256SUMS inventory")
+    return entries
+
+
+def verify_sums(root, expected):
+    entries = parse_sums(read_metadata(root, "SHA256SUMS"))
+    if set(entries) != expected:
+        raise ValueError("SHA256SUMS inventory mismatch")
+    for name, digest in entries.items():
+        with open_regular(root, name) as source:
+            if hash_stream(source) != digest:
+                raise ValueError("artifact_checksum_mismatch: " + repr(name)[:160])
+
+
+def bundle_files(root):
+    result = set()
+    total = 0
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs + files:
+            path = Path(directory) / name
+            info = path.lstat()
+            if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                raise ValueError("unusable bundle entry")
+            if stat.S_ISREG(info.st_mode):
+                result.add(path.relative_to(root).as_posix())
+                total += info.st_size
+                if len(result) > FILE_LIMIT or total > EXPANDED_LIMIT:
+                    raise ValueError("bundle exceeds size or file limit")
+    return result
+
+
+def validate_inventory(root, version=None, architecture=None):
+    manifest = unique_json(read_metadata(root, "release-manifest.json"))
+    if not isinstance(manifest, dict) or manifest.get("document_type") != "release-manifest" or type(manifest.get("schema_version")) is not int or manifest["schema_version"] != 1:
+        raise ValueError("unsupported release manifest")
+    actual_version = manifest.get("release_version")
+    revision = manifest.get("source_revision")
+    if not isinstance(actual_version, str) or not re.fullmatch(VERSION_PATTERN, actual_version) or (version is not None and actual_version != version):
+        raise ValueError("release version mismatch")
+    if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}([0-9a-f]{24})?", revision):
+        raise ValueError("invalid source revision")
+    compatibility = manifest.get("compatibility")
+    if not isinstance(compatibility, dict):
+        raise ValueError("invalid compatibility")
+    host = compatibility.get("host")
+    if not isinstance(host, dict) or host.get("distribution") != "ubuntu" or host.get("release") != "24.04" or host.get("architecture") not in ("amd64", "arm64") or (architecture is not None and host["architecture"] != architecture):
+        raise ValueError("incompatible target")
+    if any(compatibility.get(key) != actual_version for key in ("host_binary_version", "appliance_version", "migration_set_version")) or compatibility.get("configuration_schema_version") != 1 or type(compatibility.get("configuration_schema_version")) is not int:
+        raise ValueError("incompatible binary or configuration")
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts or len(artifacts) > FILE_LIMIT:
+        raise ValueError("invalid artifact inventory")
+    by_id = {}
+    names = {"release-manifest.json"}
+    for artifact in artifacts:
+        if not isinstance(artifact, dict) or not isinstance(artifact.get("id"), str) or artifact["id"] in by_id:
+            raise ValueError("invalid or duplicate artifact identity")
+        by_id[artifact["id"]] = artifact
+        if "path" not in artifact:
+            continue
+        safe_parts(artifact["path"])
+        name = "artifacts/" + artifact["path"]
+        if name in names:
+            raise ValueError("duplicate artifact path")
+        names.add(name)
+        digest, size = artifact.get("sha256"), artifact.get("size_bytes")
+        if not isinstance(digest, str) or not re.fullmatch("sha256:" + HASH_PATTERN, digest) or type(size) is not int or size < 0:
+            raise ValueError("invalid artifact checksum or size")
+        with open_regular(root, name) as source:
+            if os.fstat(source.fileno()).st_size != size or "sha256:" + hash_stream(source) != digest:
+                raise ValueError("artifact_checksum_mismatch: " + repr(name)[:160])
+    if bundle_files(root) != names | {"SHA256SUMS"}:
+        raise ValueError("unexpected bundle files or missing inventory entry")
+    verify_sums(root, names)
+    binary_id = compatibility.get("host_binary_id")
+    if not isinstance(binary_id, str):
+        raise ValueError("invalid selected binary")
+    binary = by_id.get(binary_id)
+    if not binary or binary.get("kind") != "quick_nucleus_binary" or binary.get("version") != actual_version or binary.get("target") != {"context": "host", "os": "linux", "architecture": host["architecture"]} or not isinstance(binary.get("path"), str):
+        raise ValueError("incompatible selected binary")
+    return manifest
+
+
+def extract_archive(path, root):
+    """Write only regular files; no tar-provided permissions or links survive."""
+    if path.stat().st_size > ARCHIVE_LIMIT:
+        raise ValueError("archive exceeds compressed size limit")
+    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        with open_regular(path.parent, path.name) as compressed, gzip.GzipFile(fileobj=compressed) as uncompressed:
+            reader = LimitedArchiveReader(uncompressed)
+            with tarfile.open(fileobj=reader, mode="r|", tarinfo=RegularTarInfo) as archive:
+                extract_members(archive, root_fd)
+                # Drain through tar's stream buffer as well as gzip to validate its
+                # footer and reject hidden content following the tar end marker.
+                while payload := archive.fileobj.read(65536):
+                    if any(payload):
+                        raise ValueError("non-padding content after archive end")
+                if reader.count < archive.offset + 1024 or reader.count % 512:
+                    raise ValueError("truncated archive end marker")
+        os.fsync(root_fd)
+    finally:
+        os.close(root_fd)
+
+
+def extract_members(archive, root_fd):
+    seen, directories, total = set(), set(), 0
+    for member in archive:
+        try:
+            parts = safe_parts(member.name)
+        except ValueError:
+            raise ValueError("unsafe archive entry path") from None
+        name = "/".join(parts)
+        parents = {"/".join(parts[:index]) for index in range(1, len(parts))}
+        if not member.isfile() or member.sparse is not None or name in seen or name in directories or parents & seen:
+            raise ValueError("unsafe archive entry: " + repr(name)[:160])
+        seen.add(name)
+        directories.update(parents)
+        total += member.size
+        if name in ("release-manifest.json", "SHA256SUMS") and member.size > METADATA_LIMIT:
+            raise ValueError("archive metadata exceeds size limit")
+        if member.size < 0 or len(seen) > FILE_LIMIT or total > EXPANDED_LIMIT:
+            raise ValueError("archive exceeds expanded size or file limit")
+        descriptor = os.dup(root_fd)
+        try:
+            for part in parts[:-1]:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            target_fd = os.open(parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=descriptor)
+            with os.fdopen(target_fd, "wb") as target:
+                source = archive.extractfile(member)
+                if source is None:
+                    raise ValueError("unreadable archive entry")
+                with source:
+                    remaining = member.size
+                    while remaining:
+                        chunk = source.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            raise ValueError("truncated archive member")
+                        target.write(chunk)
+                        remaining -= len(chunk)
+                target.flush()
+                os.fsync(target.fileno())
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+class RegularTarInfo(tarfile.TarInfo):
+    def _proc_member(self, archive):
+        # Refuse extension headers before tarfile can allocate their payloads.
+        # The producer writes bounded regular-file names without extensions.
+        if not self.isfile() or self.type not in (tarfile.REGTYPE, tarfile.AREGTYPE):
+            raise ValueError("unsafe archive entry type")
+        return super()._proc_member(archive)
+
+
+class LimitedArchiveReader:
+    def __init__(self, source):
+        self.source = source
+        self.count = 0
+
+    def read(self, size):
+        payload = self.source.read(size)
+        self.count += len(payload)
+        if self.count > EXPANDED_LIMIT + FILE_LIMIT * 1024 + 10240:
+            raise ValueError("archive stream exceeds expanded size limit")
+        return payload
+
+"""Pinned acquisition and dispatch, embedded in the public bootstrap script."""
+
+import argparse
+import fcntl
+import hashlib
+import platform
+import selectors
+import shlex
+import signal
+import subprocess
+import sys
+import tarfile
+import time
+
+# Imports above are removed when embedded; verification rules precede this source.
+import json
+import os
+from pathlib import Path
+import re
+import stat
+
+STATE_ROOT = Path("/var/lib/quick-nucleus/bootstrap")
+DOWNLOAD_TIMEOUT = 1800
+VERSION_TIMEOUT = 30
+VERSION_OUTPUT_LIMIT = 64 * 1024
+
+
+def check_directory(descriptor, uid=0, private=False):
+    info = os.fstat(descriptor)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_mode & 0o022 or (private and stat.S_IMODE(info.st_mode) != 0o700):
+        raise ValueError("unsafe staging directory ownership or permissions")
+
+
+class PrivateDirectory:
+    """All state access stays relative to a validated, retained directory fd."""
+
+    def __init__(self, descriptor, path, uid=0):
+        check_directory(descriptor, uid, private=True)
+        self.fd, self.path, self.uid = descriptor, Path(path), uid
+
+    @classmethod
+    def open(cls, path):
+        if not path.is_absolute():
+            raise ValueError("staging path must be absolute")
+        descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            check_directory(descriptor)
+            parts = safe_parts(str(path)[1:])
+            for index, part in enumerate(parts):
+                try:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+                except FileNotFoundError:
+                    # Only create the dedicated state subtree, never host ancestors.
+                    if index < len(parts) - 2:
+                        raise ValueError("host state parent is missing")
+                    os.mkdir(part, 0o700, dir_fd=descriptor)
+                    os.fsync(descriptor)
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+                try:
+                    check_directory(child, private=index == len(parts) - 1)
+                except BaseException:
+                    os.close(child)
+                    raise
+                os.close(descriptor)
+                descriptor = child
+            return cls(descriptor, path)
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def close(self):
+        os.close(self.fd)
+
+    def open_file(self, name, *, create=False):
+        if len(safe_parts(name)) != 1:
+            raise ValueError("state file must be a basename")
+        flags = os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK
+        if create:
+            flags |= os.O_CREAT | os.O_EXCL
+        descriptor = os.open(name, flags, 0o600, dir_fd=self.fd)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != self.uid or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1:
+                raise ValueError("unsafe staging file ownership or permissions")
+            return os.fdopen(descriptor, "r+b")
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def exists(self, name):
+        try:
+            with self.open_file(name):
+                return True
+        except FileNotFoundError:
+            return False
+
+    def remove_file(self, name):
+        if self.exists(name):
+            os.unlink(name, dir_fd=self.fd)
+            os.fsync(self.fd)
+
+    def read(self, name):
+        with self.open_file(name) as source:
+            payload = source.read(METADATA_LIMIT + 1)
+        if len(payload) > METADATA_LIMIT:
+            raise ValueError("state metadata exceeds size limit")
+        return payload
+
+    def write(self, name, value):
+        temporary = name + ".part"
+        self.remove_file(temporary)
+        with self.open_file(temporary, create=True) as target:
+            target.write(json.dumps(value, sort_keys=True, separators=(",", ":")).encode() + b"\n")
+            target.flush()
+            os.fsync(target.fileno())
+        self.exists(name)  # Validate an existing destination before replacing it.
+        os.replace(temporary, name, src_dir_fd=self.fd, dst_dir_fd=self.fd)
+        os.fsync(self.fd)
+
+    def lock(self):
+        try:
+            target = self.open_file("lock", create=True)
+        except FileExistsError:
+            target = self.open_file("lock")
+        try:
+            fcntl.flock(target, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BaseException:
+            target.close()
+            raise ValueError("another bootstrap operation is in progress") from None
+        return target
+
+    def directory(self, name, *, create=False):
+        if len(safe_parts(name)) != 1:
+            raise ValueError("state directory must be a basename")
+        if create:
+            os.mkdir(name, 0o700, dir_fd=self.fd)
+            os.fsync(self.fd)
+        descriptor = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=self.fd)
+        try:
+            return PrivateDirectory(descriptor, self.path / name, self.uid)
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def remove_tree(self, name):
+        try:
+            child = self.directory(name)
+        except FileNotFoundError:
+            return
+        try:
+            for entry in os.listdir(child.fd):
+                info = os.stat(entry, dir_fd=child.fd, follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode):
+                    child.remove_tree(entry)
+                elif stat.S_ISREG(info.st_mode) and info.st_uid == self.uid and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) in (0o600, 0o755):
+                    os.unlink(entry, dir_fd=child.fd)
+                else:
+                    raise ValueError("unsafe interrupted staging entry")
+            os.fsync(child.fd)
+        finally:
+            child.close()
+        os.rmdir(name, dir_fd=self.fd)
+        os.fsync(self.fd)
+
+    def validate_tree(self):
+        for entry in os.listdir(self.fd):
+            info = os.stat(entry, dir_fd=self.fd, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                child = self.directory(entry)
+                try:
+                    child.validate_tree()
+                finally:
+                    child.close()
+            elif not (stat.S_ISREG(info.st_mode) and info.st_uid == self.uid and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) in (0o600, 0o755)):
+                raise ValueError("unsafe verified bundle entry")
+
+
+def bounded_process(command, *, timeout, output_limit, target=None):
+    """Bound bytes as they arrive, rather than buffering untrusted output."""
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    output = bytearray()
+    count = 0
+    deadline = time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ, True)
+            selector.register(process.stderr, selectors.EVENT_READ, False)
+            while selector.get_map():
+                if time.monotonic() >= deadline:
+                    raise ValueError("command exceeded time limit")
+                for key, _ in selector.select(min(0.2, max(0, deadline - time.monotonic()))):
+                    payload = os.read(key.fileobj.fileno(), 65536)
+                    if not payload:
+                        selector.unregister(key.fileobj)
+                        continue
+                    count += len(payload)
+                    if count > output_limit:
+                        raise ValueError("command exceeded output size limit")
+                    if key.data:
+                        if target is not None:
+                            target.write(payload)
+                        else:
+                            output.extend(payload)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError("command exceeded time limit")
+        if process.wait(timeout=remaining):
+            raise ValueError("command failed")
+        return bytes(output)
+    except BaseException:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+        raise
+    finally:
+        process.stdout.close()
+        process.stderr.close()
+
+
+def download(state, name, url, limit):
+    temporary = name + ".part"
+    state.remove_file(temporary)
+    command = ["curl", "--disable", "--fail", "--silent", "--show-error", "--location",
+               "--proto", "=https", "--proto-redir", "=https", "--connect-timeout", "30",
+               "--max-time", "1800", "--max-filesize", str(limit), url]
+    try:
+        with state.open_file(temporary, create=True) as target:
+            deadline = time.monotonic() + DOWNLOAD_TIMEOUT
+            for attempt in range(4):
+                target.seek(0)
+                target.truncate()
+                try:
+                    bounded_process(command, timeout=max(0, deadline - time.monotonic()), output_limit=limit, target=target)
+                    break
+                except ValueError:
+                    if attempt == 3 or time.monotonic() >= deadline:
+                        raise
+                    time.sleep(min(2 ** attempt, max(0, deadline - time.monotonic())))
+            target.flush()
+            os.fsync(target.fileno())
+    except BaseException:
+        state.remove_file(temporary)
+        raise
+    return temporary
+
+
+def validate_checkpoint(checkpoint, repository, version, architecture):
+    identity = {"schema_version": 1, "repository": repository, "version": version, "architecture": architecture}
+    if not isinstance(checkpoint, dict) or any(type(checkpoint.get(key)) is not type(value) or checkpoint.get(key) != value for key, value in identity.items()):
+        raise ValueError("bootstrap checkpoint conflicts with the requested release")
+    for key in ("inventory_sha256", "archive_sha256"):
+        if not isinstance(checkpoint.get(key), str) or not re.fullmatch(HASH_PATTERN, checkpoint[key]):
+            raise ValueError("invalid bootstrap checkpoint hash")
+    if "manifest_sha256" in checkpoint:
+        if not isinstance(checkpoint["manifest_sha256"], str) or not re.fullmatch(HASH_PATTERN, checkpoint["manifest_sha256"]) or not isinstance(checkpoint.get("source_revision"), str) or not re.fullmatch(r"[0-9a-f]{40}([0-9a-f]{24})?", checkpoint["source_revision"]):
+            raise ValueError("invalid verified bootstrap checkpoint")
+
+
+def acquire(state, repository, version, architecture, downloader=download, progress=print):
+    try:
+        return acquire_pinned(state, repository, version, architecture, downloader, progress)
+    finally:
+        for name in ("SHA256SUMS.part", f"quick-nucleus-{version}-linux-{architecture}.tar.gz.part", "checkpoint.json.part"):
+            state.remove_file(name)
+
+
+def acquire_pinned(state, repository, version, architecture, downloader, progress):
+    name = f"quick-nucleus-{version}-linux-{architecture}.tar.gz"
+    progress("Bootstrap stage: inventory")
+    checkpoint = unique_json(state.read("checkpoint.json")) if state.exists("checkpoint.json") else None
+    if checkpoint is not None:
+        validate_checkpoint(checkpoint, repository, version, architecture)
+    part = downloader(state, "SHA256SUMS", asset_url(repository, version, "SHA256SUMS"), METADATA_LIMIT)
+    inventory = state.read(part)
+    entries = parse_sums(inventory)
+    if any(len(safe_parts(entry)) != 1 for entry in entries) or name not in entries:
+        raise ValueError("selected archive is missing from the release inventory")
+    identity = {"schema_version": 1, "repository": repository, "version": version, "architecture": architecture,
+                "inventory_sha256": hashlib.sha256(inventory).hexdigest(), "archive_sha256": entries[name]}
+    if checkpoint is not None and any(checkpoint[key] != value for key, value in identity.items()):
+        raise ValueError("downloaded inventory conflicts with the pinned release")
+    if state.exists("SHA256SUMS") and state.read("SHA256SUMS") != inventory:
+        raise ValueError("stored inventory conflicts with the pinned release")
+    state.write("checkpoint.json", checkpoint or identity)
+    os.replace(part, "SHA256SUMS", src_dir_fd=state.fd, dst_dir_fd=state.fd)
+    os.fsync(state.fd)
+    progress("Bootstrap stage: archive")
+    if not state.exists(name):
+        part = downloader(state, name, asset_url(repository, version, name), ARCHIVE_LIMIT)
+        with state.open_file(part) as source:
+            if hash_stream(source) != entries[name]:
+                raise ValueError("archive checksum mismatch")
+        os.rename(part, name, src_dir_fd=state.fd, dst_dir_fd=state.fd)
+        os.fsync(state.fd)
+    with state.open_file(name) as source:
+        if os.fstat(source.fileno()).st_size > ARCHIVE_LIMIT or hash_stream(source) != entries[name]:
+            raise ValueError("stored archive differs from the pinned release")
+    progress("Bootstrap stage: extraction")
+    try:
+        existing = state.directory("bundle")
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        try:
+            existing.validate_tree()
+            manifest = validate_inventory(existing.path, version, architecture)
+            if not checkpoint or checkpoint.get("manifest_sha256") != checksum(existing.path / "release-manifest.json") or checkpoint.get("source_revision") != manifest["source_revision"]:
+                raise ValueError("existing bundle differs from the verified checkpoint")
+            return existing.path, manifest
+        finally:
+            existing.close()
+    # Unpublished extraction is never authority; restart it from the pinned archive.
+    state.remove_tree("extracting")
+    extracting = state.directory("extracting", create=True)
+    try:
+        extract_archive(state.path / name, extracting.path)
+        progress("Bootstrap stage: internal-inventory")
+        manifest = validate_inventory(extracting.path, version, architecture)
+        manifest_hash = checksum(extracting.path / "release-manifest.json")
+        if checkpoint and "manifest_sha256" in checkpoint and (checkpoint["manifest_sha256"] != manifest_hash or checkpoint["source_revision"] != manifest["source_revision"]):
+            raise ValueError("manifest differs from the verified release pin")
+        identity.update(manifest_sha256=manifest_hash, source_revision=manifest["source_revision"])
+        state.write("checkpoint.json", identity)
+        state.remove_tree("bundle")
+        os.rename("extracting", "bundle", src_dir_fd=state.fd, dst_dir_fd=state.fd)
+        os.fsync(state.fd)
+    finally:
+        extracting.close()
+    return state.path / "bundle", manifest
+
+
+def dispatch(bundle, manifest, verify_only=False, *, terminal_path="/dev/tty"):
+    architecture, version = manifest["compatibility"]["host"]["architecture"], manifest["release_version"]
+    if validate_inventory(bundle, version, architecture) != manifest:
+        raise ValueError("bundle manifest changed before dispatch")
+    artifact = next(entry for entry in manifest["artifacts"] if entry["id"] == manifest["compatibility"]["host_binary_id"])
+    binary = bundle / "artifacts" / artifact["path"]
+    with open_regular(binary.parent, binary.name) as source:
+        os.fchmod(source.fileno(), 0o755)
+    if not verify_only:
+        with controlling_terminal(terminal_path) as terminal:
+            return run_interactive([str(binary), "install", "--interactive", "--release-directory", str(bundle)], terminal)
+    payload = bounded_process([str(binary), "version", "--json"], timeout=VERSION_TIMEOUT, output_limit=VERSION_OUTPUT_LIMIT)
+    result = unique_json(payload)
+    if not isinstance(result, dict) or result.get("command") != "version" or result.get("status") != "succeeded" or result.get("data") != {"version": version, "source_revision": manifest["source_revision"], "target": "linux-" + architecture}:
+        raise ValueError("verified binary version result differs from the selected release")
+    print(payload.decode().strip())
+    print(f"Verified release bundle: {bundle}")
+    print("Acquisition verified. Nucleus installation has not been performed.")
+    return 0
+
+
+def run_interactive(command, terminal):
+    """Run guided setup on the terminal; it owns interrupts while it runs.
+
+    Interrupts reach the whole foreground process group. Setup restores the
+    terminal and finishes a host mutation before stopping, so this process
+    must neither die nor kill it. Handlers, unlike ignored signals, reset to
+    their defaults in the child when it starts.
+    """
+    deferred = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    previous = {number: signal.signal(number, lambda *_: None) for number in deferred}
+    try:
+        return subprocess.Popen(command, stdin=terminal).wait()
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
+def detect_host():
+    if platform.system() != "Linux":
+        raise ValueError("bootstrap requires Ubuntu 24.04 amd64 or arm64")
+    values = {}
+    for line in Path("/etc/os-release").read_text().splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            parsed = shlex.split(value)
+            values[key] = parsed[0] if len(parsed) == 1 else ""
+    architecture = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine())
+    if values.get("ID") != "ubuntu" or values.get("VERSION_ID") != "24.04" or architecture is None:
+        raise ValueError("bootstrap requires Ubuntu 24.04 amd64 or arm64")
+    return architecture
+
+
+def main(repository, version, short_url_base):
+    parser = argparse.ArgumentParser(description="Acquire a verified pinned Nucleus release and start the guided installation.")
+    parser.add_argument("--verify-only", action="store_true", help="Only verify acquisition and run the binary's version command")
+    args = parser.parse_args()
+    stage, state = "prerequisites", None
+    resume = short_command(short_url_base, version, verify_only=args.verify_only)
+    try:
+        if os.geteuid() != 0:
+            raise ValueError("run the pinned command as root or through ordinary sudo")
+        architecture = detect_host()
+        if not args.verify_only:
+            # Refuse a missing terminal before any network activity.
+            controlling_terminal().close()
+        stage = "staging"
+        state = PrivateDirectory.open(STATE_ROOT)
+        with state.lock():
+            def progress(message):
+                nonlocal stage
+                stage = message.split(": ", 1)[1]
+                print(message, flush=True)
+            bundle, manifest = acquire(state, repository, version, architecture, progress=progress)
+        stage = "dispatch"
+        return dispatch(bundle, manifest, args.verify_only)
+    except (ValueError, OSError, KeyError, TypeError, StopIteration, subprocess.SubprocessError, EOFError, RecursionError, tarfile.TarError) as error:
+        print(f"Bootstrap refused at {stage}: {ascii(str(error))[:240]}", file=sys.stderr)
+        print("Resume the same release: " + resume, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("Bootstrap interrupted; resume the same release: " + resume, file=sys.stderr)
+        return 130
+    finally:
+        if state is not None:
+            state.close()
+
+
+def controlling_terminal(path="/dev/tty"):
+    try:
+        descriptor = os.open(path, os.O_RDWR | os.O_NOCTTY)
+        terminal = os.fdopen(descriptor, "r+b", buffering=0)
+    except OSError:
+        raise ValueError("guided installation requires a terminal (/dev/tty); use --verify-only, then quick-nucleus install --config /absolute/private/install.yaml") from None
+    if not os.isatty(terminal.fileno()):
+        terminal.close()
+        raise ValueError("guided installation requires a controlling terminal; use --verify-only, then install --config")
+    return terminal
+
+raise SystemExit(main('nielsvanspauwen/quick-nucleus-releases', '0.2.0-dev.6', 'https://get.warpica.com'))
+QUICK_BOOTSTRAP_PYTHON
+}
+quick_bootstrap "$@"
+}
+# QUICK_NUCLEUS_BOOTSTRAP_COMPLETE

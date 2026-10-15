@@ -1,0 +1,65 @@
+#!/bin/sh
+# Generated release asset; HTTPS/account trust, pip verifies the wheel's sha256.
+# The complete compound command must parse before installation can start.
+{
+quick_cli_install() {
+  url='https://github.com/nielsvanspauwen/quick-nucleus-releases/releases/download/v0.2.0-dev.6/quick_cli-0.2.0.dev6-py3-none-any.whl#sha256=dfb1ce15395d7ae1ba5d33715dd525e162e60269c32197eec343dcbec924a9b8'
+  force=0
+  for argument in "$@"; do
+    case $argument in
+      --force) force=1 ;;
+      --help) echo 'Install the Quick developer CLI 0.2.0-dev.6 with pipx. Options: --force replaces an existing quick-cli without asking.'; return 0 ;;
+      *) echo "Unknown option: $argument (expected --force or --help)" >&2; return 2 ;;
+    esac
+  done
+  python=$(command -v python3 || true)
+  if [ -z "$python" ] || ! "$python" -c 'import sys; sys.exit(sys.version_info < (3, 11))' </dev/null; then
+    echo 'The Quick CLI needs Python 3.11 or newer as python3. Nothing was changed.' >&2
+    echo '  macOS:  brew install python pipx && pipx ensurepath' >&2
+    echo '  Ubuntu: sudo apt install python3 pipx && pipx ensurepath' >&2
+    return 1
+  fi
+  if ! command -v pipx >/dev/null; then
+    echo 'The Quick CLI installs with pipx, which was not found. Nothing was changed.' >&2
+    echo '  macOS:  brew install pipx && pipx ensurepath' >&2
+    echo '  Ubuntu: sudo apt install pipx && pipx ensurepath' >&2
+    echo '  Other:  see https://pipx.pypa.io/stable/installation/' >&2
+    return 1
+  fi
+  bin=$(pipx environment --value PIPX_BIN_DIR </dev/null 2>/dev/null || true)
+  # Older pipx lacks `environment --value`; fall back to its documented default.
+  [ -n "$bin" ] || bin=${PIPX_BIN_DIR:-$HOME/.local/bin}
+  existing=$(command -v quick || true)
+  if [ -n "$existing" ] && [ "$existing" != "$bin/quick" ]; then
+    echo "Warning: another quick command is already on PATH: $existing" >&2
+    echo "  The first quick on PATH wins. This installs to $bin/quick; reorder PATH or call it by full path." >&2
+    echo '  Each quick reads its sign-in and settings from QUICK_CONFIG_DIR; set it per install to keep them apart.' >&2
+  fi
+  case ":$PATH:" in
+    *":$bin:"*) ;;
+    *) echo "Note: $bin is not on PATH; run 'pipx ensurepath' and open a new shell." >&2 ;;
+  esac
+  replace=
+  if pipx list --short </dev/null 2>/dev/null | grep -q '^quick-cli '; then
+    if [ "$force" = 1 ]; then
+      replace=--force
+    elif (: </dev/tty) 2>/dev/null; then
+      printf 'quick-cli is already installed with pipx. Replace it with 0.2.0-dev.6? [y/N] ' >/dev/tty
+      read -r answer </dev/tty || answer=
+      case $answer in
+        y|Y|yes|YES) replace=--force ;;
+        *) echo 'Kept the existing quick-cli. Nothing was changed.' >&2; return 1 ;;
+      esac
+    else
+      echo 'quick-cli is already installed with pipx and no terminal can confirm replacing it.' >&2
+      echo '  To replace it: curl -fsSL https://get.warpica.com/cli/0.2.0-dev.6 | sh -s -- --force' >&2
+      return 1
+    fi
+  fi
+  pipx install $replace --python "$python" "$url" </dev/null || return 1
+  "$bin/quick" --help </dev/null >/dev/null || { echo "Installed, but $bin/quick --help failed." >&2; return 1; }
+  echo 'Installed the Quick developer CLI 0.2.0-dev.6. Next: quick auth login https://YOUR-NUCLEUS'
+}
+quick_cli_install "$@"
+}
+# QUICK_CLI_INSTALLER_COMPLETE
