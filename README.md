@@ -7,4 +7,4 @@ the publication account establish trust; checksums detect artifact corruption.
 
 Download a versioned release from this repository's Releases page. Release
 metadata under `releases/` records source provenance and frozen artifact hashes.
-The guided bootstrap is delivered separately; it is not available yet.
+New releases include a pinned bootstrap script that verifies acquisition and runs the binary's version command. Interactive installation remains pending.
