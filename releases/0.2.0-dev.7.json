@@ -1,0 +1,234 @@
+{
+  "assets": {
+    "SHA256SUMS": "bac7445a73639202a4c83ccfa6f552a7df6098d7ef049ca135edd153e024eef7",
+    "quick-app-0.2.0-dev.7.zip": "8e45d173792f4457578a71e533dc9f6fe2d372d62d43bdbaded842bd1617b0ab",
+    "quick-app-0.2.0-dev.7.zip.sha256": "661d9593262a20d021eb6755bd542d63746c34386838e9e96e2cfd6ba1d9c50c",
+    "quick-cli-install-0.2.0-dev.7.sh": "ee6cee4b142ead6447d2e8f702a4ef0b7014d6dbf13d75bb4a18fa8fa2fd7bec",
+    "quick-nucleus-0.2.0-dev.7-linux-amd64.tar.gz": "4793ab0c8852161e82d4629846adaee6a9cdff318c7f9ca52c6422ea3a20dadf",
+    "quick-nucleus-0.2.0-dev.7-linux-arm64.tar.gz": "8d0b0e0fa0d1faf63c42ea78ccb6b7fd47cbc06686bd6c4fd041efcc35c69ea0",
+    "quick-nucleus-bootstrap-0.2.0-dev.7.sh": "613ffa823754b74b837f4a3b3ac3241c897aec9dbd7fa7157cc81e609bfb4ae0",
+    "quick_cli-0.2.0.dev7-py3-none-any.whl": "2fc75a88d88d04ebe514b26d705b044f5c701bcd5d4c3b68682540764d87ee41",
+    "quick_server_sdk-0.2.0.dev7-py3-none-any.whl": "7f768b0d7f3da9dd77a3222fb50083032927bef6d870ade27ccf4520ca7a1187"
+  },
+  "bootstrap_format": 2,
+  "images": {
+    "control-plane-image": {
+      "children": {
+        "amd64": "sha256:011fe4081d74f8a900f7f7b2f94958721356c7cc14f4d69a7311fe73ea52e7d6",
+        "arm64": "sha256:d4a0d31336f5fc11ad3ff9e37c20fc7024e9d30822e8ac96a9fce1daed793aba"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-control-plane@sha256:dd37b5d26b8a142dba65a87c4e9526710412009bfa36f6a60dffc1ecc42f78ab",
+      "version": "0.2.0-dev.7"
+    },
+    "garage-admin-image": {
+      "children": {
+        "amd64": "sha256:0f4203c6cec0ba8d27f8fa3b60714ed156231f09cd213fd8597c14899234a77b",
+        "arm64": "sha256:ecea165e0ddcb871d250518f4100636b37f8c065242ae4cadc81fa562433f64c"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-garage-admin@sha256:9dfbb5574709ce1e1f874d619f22dc19204f5773466875c26ff3e979cbf71649",
+      "version": "0.2.0-dev.7"
+    },
+    "garage-image": {
+      "children": {
+        "amd64": "sha256:df71920098b2728cda596c4362cd6316345f6791240b2c2aff8aa34668f99b6d",
+        "arm64": "sha256:88bf0cdccf026259d9f07d1b8859afc8f1cbc0e518289fdf9fc89997d4d8b5a3"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "dxflrs/garage@sha256:15b40e0dddd2e611aa746ff6f7c3bfe9f22735e4a2cc29e0abd89c268e9b79d9",
+      "version": "0.2.0-dev.7"
+    },
+    "otel-collector-image": {
+      "children": {
+        "amd64": "sha256:b5cf983651c32c3ca13f936deb51742015a54d121f388cac248923ddeb8cc9fc",
+        "arm64": "sha256:d497a11a3088097e4054ffbfd4b4f5244a8c036dc77c96cf2f14f86113ee9b86"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "otel/opentelemetry-collector-contrib@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1",
+      "version": "0.2.0-dev.7"
+    },
+    "postgres-image": {
+      "children": {
+        "amd64": "sha256:15b55a04a4935714c45ec9fe104bdc6912d9d91ecaf272c8eb735ac44b2907db",
+        "arm64": "sha256:4fbaa772bf1fae5db8a526173550d565f76f938e3ae86c4b63984b8fb968bfc5"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/postgres@sha256:0e2279598bc0224fb5960c3a61eb23270cd60119427f3a7bdec86ba282600dcc",
+      "version": "0.2.0-dev.7"
+    },
+    "postgrest-image": {
+      "children": {
+        "amd64": "sha256:560895fc1f6cb78f36ae64682c85bfc923c73da2d3a473ae2f55755fd7991ad1",
+        "arm64": "sha256:844785450d6b046ee97f1c67ea37e3ff6b4ed7ee3570b1b91c03f66f032c4805"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "postgrest/postgrest@sha256:54000f24847d01a2c2302e0041cf0618b875c57fb48507d743cfa9aaa50bf43c",
+      "version": "0.2.0-dev.7"
+    },
+    "quick-caddy-image": {
+      "children": {
+        "amd64": "sha256:8a7dfdc50a37f467cd81706d05a1fed785a8b800c0668bc4146fc1ea1d8e766a",
+        "arm64": "sha256:f47e8886c7e3ee09f39fd6293a27c3af8e02b60a2bf91b0ceae73cb4e3578056"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-caddy@sha256:5900c34c7ae6499e74b2457d97b80ae189f16042977892d7f39eeaa1a743b59d",
+      "version": "0.2.0-dev.7"
+    },
+    "quick-nginx-image": {
+      "children": {
+        "amd64": "sha256:a093e8e2ebdce43b532f26c6b7e5df1ffa66c2237a0000c6c1117a006014c92e",
+        "arm64": "sha256:6d3a73ee9342f379d04bd2e33bcc913613d46246748ff4b1958035570e1372a7"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-nginx@sha256:2c2b30818e526c4809dfdc024a45f964c4a7cb955580ed25a24a3419ba3c1bbb",
+      "version": "0.2.0-dev.7"
+    },
+    "quick-secret-image": {
+      "children": {
+        "amd64": "sha256:074938a4a3c3691d722351c24809311a79fbe73bfb3daa73b1dde0b3ad2c38aa",
+        "arm64": "sha256:34d0a634f949fceec988528e1f1d8e2c2d75c33c9af402d5575109a9d5e80c76"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-secret@sha256:fe1aa0758682a4062ae7d792792c1ee1227030a42866af0c6bc0c747e383bb2e",
+      "version": "0.2.0-dev.7"
+    },
+    "realtime-image": {
+      "children": {
+        "amd64": "sha256:2cc87edf0db5cebf1f58c9a4116bb80a25ff764c8706b6802fa68d976e66e5d7",
+        "arm64": "sha256:11651eb260639365adfd8d886ac1bfba9b069440cf92cc29f400f3b4a6554cb9"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/realtime@sha256:aa1c92c0cf326007563641730ec9da9c60478caa6853887775365fa2c097a471",
+      "version": "0.2.0-dev.7"
+    },
+    "runner-image": {
+      "children": {
+        "amd64": "sha256:751e96d7ea342eb3380d5d24fb000c538f83f606b52d7591bd7dec531474be8a",
+        "arm64": "sha256:040366ad85694fe19cb544fd55d895c580ddddadb2bc4f00fa2518e1c4b5f4e2"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "ghcr.io/nielsvanspauwen/quick-runner@sha256:37db664b6e3b5bb13ecc0e9acf60f92d7ea10bb651f9f16a1305d032d21808a5",
+      "version": "0.2.0-dev.7"
+    },
+    "storage-image": {
+      "children": {
+        "amd64": "sha256:6f706c1184d97b081446527bb62a3193d3d47ad0daafcf738fd5c3e5a62aed97",
+        "arm64": "sha256:9326eb9c6b74c0a5ba393ab46a08a51d16bc5ea5f2978fc5b0f17fc67c64a4de"
+      },
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "os": "linux"
+        }
+      ],
+      "reference": "supabase/storage-api@sha256:c8eb9858eafec891a97c27125470aaad54703c3f4eb4d55ca7f1bf6c6411febf",
+      "version": "0.2.0-dev.7"
+    }
+  },
+  "source_revision": "a6d03e04107e1c7b207d13e7ea6db9856c9bdabe",
+  "version": "0.2.0-dev.7"
+}
