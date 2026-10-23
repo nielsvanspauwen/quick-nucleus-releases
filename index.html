@@ -742,9 +742,10 @@ def main(repository, version, short_url_base):
         state = PrivateDirectory.open(STATE_ROOT)
         with state.lock():
             def progress(message):
+                # Stage names only explain a refusal; operators see one line.
                 nonlocal stage
                 stage = message.split(": ", 1)[1]
-                print(message, flush=True)
+            print(f"Downloading and verifying Quick Nucleus {version}...", flush=True)
             bundle, manifest = acquire(state, repository, version, architecture, progress=progress)
         stage = "dispatch"
         return dispatch(bundle, manifest, args.verify_only)
@@ -771,7 +772,7 @@ def controlling_terminal(path="/dev/tty"):
         raise ValueError("guided installation requires a controlling terminal; use --verify-only, then install --config")
     return terminal
 
-raise SystemExit(main('nielsvanspauwen/quick-nucleus-releases', '0.2.0-dev.6', 'https://get.warpica.com'))
+raise SystemExit(main('nielsvanspauwen/quick-nucleus-releases', '0.2.0-dev.9', 'https://get.warpica.com'))
 QUICK_BOOTSTRAP_PYTHON
 }
 quick_bootstrap "$@"
